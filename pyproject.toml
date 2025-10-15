@@ -1,0 +1,9 @@
+[project]
+name = "pico-climate"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+
+[project.optional-dependencies]
+dev = ["circuitpython-stubs>=9.2.9", "circup>=2.2.3"]

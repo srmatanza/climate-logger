@@ -1,0 +1,6 @@
+adafruit_ahtx0==1.0.27
+adafruit_connection_manager==3.1.5
+adafruit_ticks==1.1.4
+adafruit_register==1.11.0
+adafruit_minimqtt==8.0.1
+adafruit_bus_device==5.2.13
