@@ -23,17 +23,16 @@ and publishes data to Home Assistant via MQTT.
 uv sync --extra dev
 ```
 
-This ensures you have circup and circuitpython-stubs available.
-
 ### 2. Fill out your settings
 
-Copy settings.template.toml to settings.toml or use the deploy script to generate it.
+Copy `settings.template.toml` to `settings.toml` on your device, or use the deploy script to generate it.
 Provide your credentials when prompted:
 
-- Wi-Fi SSID — Wi-Fi network name
-- Wi-Fi Password — shhh!
-- HA_USERNAME — Home Assistant username that has access to MQTT
-- HA_KEY — Home Assistant user's password
+- Wi-Fi SSID -- Wi-Fi network name
+- Wi-Fi Password -- shhh!
+- HA_USERNAME -- Home Assistant username that has access to MQTT
+- HA_KEY -- Home Assistant user's password
+- SENSOR_LOCATION -- Simple name for the location the sensor will reside (e.g. Basement, Greenhouse, Office)
 
 The deploy script will automatically write these to `settings.toml` on the Pico.
 
@@ -48,7 +47,7 @@ With your Pico W connected and mounted:
 This script will:
 
 1. Check that a CircuitPython device is connected
-2. Generate settings.toml from the template (prompting for credentials)
+2. Generate `settings.toml` from the template (prompting for credentials)
 3. Install or update CircuitPython libraries via circup
 4. Copy code.py to the board
 
