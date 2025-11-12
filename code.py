@@ -77,48 +77,88 @@ def message(client, topic, message):
     print(f"New message on topic {topic}: {message}")
 
 
-ssid = getenv("CIRCUITPY_WIFI_SSID")
-ssid_connection_info = getenv("CIRCUITPY_WIFI_PASSWORD")
-ha_username = getenv("HA_USERNAME")
-ha_key = getenv("HA_KEY")
+# ensure_wifi attempts to reconnect using the specified credentials when connectivity is lost
+def ensure_wifi():
+    # TODO: Verify whether this pool needs to be recreated each time
+    pool = socketpool.SocketPool(wifi.radio)
 
-try:
-    wifi.radio.connect(ssid, ssid_connection_info)
-except TypeError:
-    print("Could not find Wifi.")
-    raise
+    while True:
+        ssid = getenv("CIRCUITPY_WIFI_SSID")
+        ssid_connection_info = getenv("CIRCUITPY_WIFI_PASSWORD")
 
-pool = socketpool.SocketPool(wifi.radio)
-print("My MAC addr: ", [hex(i) for i in wifi.radio.mac_address])
-print(f"My IP address is {wifi.radio.ipv4_address}")
-mqtt_client = MQTT.MQTT(
-    broker="homeassistant.local",
-    username=ha_username,
-    password=ha_key,
-    socket_pool=pool,
-    port=1883,
-)
-mqtt_client.on_connect = connect
-mqtt_client.on_disconnect = disconnect
-mqtt_client.on_publish = publish
-mqtt_client.on_subscribe = subscribe
-mqtt_client.on_unsubscribe = unsubscribe
-mqtt_client.on_message = message
+        # try and connect
+        try:
+            wifi.radio.connect(ssid, ssid_connection_info)
+        except TypeError:
+            print("Could not find Wifi.")
+            raise
+
+        # if unsuccessful, retry with backoff
+        if not wifi.radio.connected:
+            print("error connecting to wifi, retrying...")
+            time.sleep(9)
+            continue
+
+        print("My MAC addr: ", [hex(i) for i in wifi.radio.mac_address])
+        print(f"My IP address is {wifi.radio.ipv4_address}")
+
+        # if successful, ensure_mqtt
+        ensure_mqtt(pool)
+
+
+# ensure_mqtt attempts to reconnect to the mqtt server and publish data to the relevant topics
+def ensure_mqtt(pool):
+    while True:
+        ha_username = getenv("HA_USERNAME")
+        ha_key = getenv("HA_KEY")
+
+        # try and connect
+        mqtt_client = MQTT.MQTT(
+            broker="homeassistant.local",
+            username=ha_username,
+            password=ha_key,
+            socket_pool=pool,
+            port=1883,
+        )
+        mqtt_client.on_connect = connect
+        mqtt_client.on_disconnect = disconnect
+        mqtt_client.on_publish = publish
+        mqtt_client.on_subscribe = subscribe
+        mqtt_client.on_unsubscribe = unsubscribe
+        mqtt_client.on_message = message
+
+        mqtt_client.connect()
+
+        # if unsuccessful, assume the issue is with the wifi
+        if not mqtt_client.is_connected():
+            print("error connecting to MQTT server")
+            return
+
+        # if successful, run temperature loop
+        publish_readings(mqtt_client)
+
+
+# publish_readings reads from the relevant sensors and
+def publish_readings(mqtt_client):
+    while True:
+        print("tempC: %0.1f C" % aht20.temperature)
+        print("rh: %0.1f %%" % aht20.relative_humidity)
+        # print("lux: %d" % veml7700.autolux)
+
+        if not mqtt_client.is_connected():
+            print("MQTT connection broken, retrying...")
+            break
+
+        mqtt_client.publish(state_topics["temp"], aht20.temperature)
+        mqtt_client.publish(state_topics["hum"], aht20.relative_humidity)
+        # mqtt_client.publish(state_topics["lux"], veml7700.autolux)
+
+        # veml7700.wait_autolux(30)
+        time.sleep(60)
+
 
 i2c = busio.I2C(scl=board.GP1, sda=board.GP0)
 # veml7700 = adafruit_veml7700.VEML7700(i2c)
 aht20 = adafruit_ahtx0.AHTx0(i2c)
 
-mqtt_client.connect()
-
-while True:
-    print("tempC: %0.1f C" % aht20.temperature)
-    print("rh: %0.1f %%" % aht20.relative_humidity)
-    # print("lux: %d" % veml7700.autolux)
-
-    mqtt_client.publish(state_topics["temp"], aht20.temperature)
-    mqtt_client.publish(state_topics["hum"], aht20.relative_humidity)
-    # mqtt_client.publish(state_topics["lux"], veml7700.autolux)
-
-    # veml7700.wait_autolux(30)
-    time.sleep(60)
+ensure_wifi()
