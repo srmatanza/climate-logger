@@ -9,7 +9,7 @@ import adafruit_minimqtt.adafruit_minimqtt as MQTT
 import wifi
 import socketpool
 
-sensor_desc = getenv("SENSOR_LOCATION")
+sensor_desc = getenv("SENSOR_LOCATION", "Home")
 
 sensors = [
     ("Temperature", "temp", "°C", "temperature"),
