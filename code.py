@@ -89,12 +89,7 @@ def ensure_wifi():
         # try and connect
         try:
             wifi.radio.connect(ssid, ssid_connection_info)
-        except TypeError:
-            print("Could not find Wifi.")
-            raise
-
-        # if unsuccessful, retry with backoff
-        if not wifi.radio.connected:
+        except Exception:
             print("error connecting to wifi, retrying...")
             time.sleep(9)
             continue
@@ -127,11 +122,11 @@ def ensure_mqtt(pool):
         mqtt_client.on_unsubscribe = unsubscribe
         mqtt_client.on_message = message
 
-        mqtt_client.connect()
-
-        # if unsuccessful, assume the issue is with the wifi
-        if not mqtt_client.is_connected():
-            print("error connecting to MQTT server")
+        try:
+            mqtt_client.connect()
+        except Exception as e:
+            print("error connecting to MQTT server, retrying...\n", e)
+            time.sleep(9)
             return
 
         # if successful, run temperature loop
@@ -140,18 +135,29 @@ def ensure_mqtt(pool):
 
 # publish_readings reads from the relevant sensors and
 def publish_readings(mqtt_client):
+    pingCounter = 0
+    pc = 1
     while True:
         print("tempC: %0.1f C" % aht20.temperature)
         print("rh: %0.1f %%" % aht20.relative_humidity)
         # print("lux: %d" % veml7700.autolux)
 
-        if not mqtt_client.is_connected():
-            print("MQTT connection broken, retrying...")
-            break
+        # Check Wifi connectivity
+        # Every N iterations, ping the gateway
+        if pingCounter % pc == 0 and wifi.radio.ping(wifi.radio.ipv4_gateway) is None:
+            mqtt_client.disconnect()
+            return
 
-        mqtt_client.publish(state_topics["temp"], aht20.temperature)
-        mqtt_client.publish(state_topics["hum"], aht20.relative_humidity)
-        # mqtt_client.publish(state_topics["lux"], veml7700.autolux)
+        pingCounter += 1
+
+        try:
+            mqtt_client.publish(state_topics["temp"], aht20.temperature)
+            mqtt_client.publish(state_topics["hum"], aht20.relative_humidity)
+            # mqtt_client.publish(state_topics["lux"], veml7700.autolux)
+        except Exception as e:
+            print("Failed to publish readings, retrying\n", e)
+            mqtt_client.disconnect()
+            return
 
         # veml7700.wait_autolux(30)
         time.sleep(60)
